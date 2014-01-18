@@ -1,0 +1,250 @@
+#!/bin/bash
+#      .-.     .-.     .-.     .-.     .-.     .-.     .-.     .-.     .-.
+# `._.'   `._.'   `._.'   `._.'   `._.'   `._.'   `._.'   `._.'   `._.'   `._.'
+#
+# github.com/rafi/mux
+# tmux project sessions manager
+
+#==============================================================================
+# Settings
+#------------------------------------------------------------------------------
+
+# Specify a memory pool path, with leading slash
+# Default: Will resolve to projects/ under mux's directory
+pool=""
+
+# Specify the project hook filename
+hook="Tmuxfile"
+
+# Resolve mux installed directory if pool is not set
+if [ -z $pool ]; then
+	# Use GNU readlink if possible (OSX)
+	readlink="greadlink"
+	hash greadlink 2>/dev/null || readlink="readlink"
+	pool="$(dirname $($readlink -f "$BASH_SOURCE"))/projects/"
+fi
+
+# Colors
+txtrst='\033[0m'    # Text Reset
+txtred='\033[0;31m' # Red
+txtgrn='\033[0;32m' # Green
+txtylw='\033[0;33m' # Yellow
+txtblu='\033[0;34m' # Blue
+txtwht='\033[0;37m' # White
+# Bold colors
+bldblk='\033[1;30m' # Black
+bldgrn='\033[1;32m' # Green
+bldylw='\033[1;33m' # Yellow
+
+#==============================================================================
+# Display script usage help
+#------------------------------------------------------------------------------
+usage()
+{
+	self=$(basename $0)
+	echo -e "$txtrst
+  Usage: $bldgrn$self [project|command]$txtrst
+
+  mux is a small helper for managing a pool of Tmuxfile project files.
+
+  ${txtwht}DISCOVER$txtrst
+    Running 'mux' without any arguments will try to discover
+    a tmux project file at './Tmuxfile' and source it.
+
+  ${txtwht}PROJECTS$txtrst
+    If the project argument is included, 'mux' will try to load it from its memory pool.
+    The memory pool is a folder 'mux' keeps with symlinks to your projects.
+    Memory pool is set at: $pool
+
+  ${txtwht}COMMANDS$txtrst
+    ${txtylw}a[${bldylw}ttach${txtylw}] $txtrst  Attach to an existing tmux session or create a new one
+    ${txtylw}l[${bldylw}s${txtylw}]     $txtrst  List available projects in memory pool and tmux sessions
+    ${txtylw}ad[${bldylw}d${txtylw}]    $txtrst  Add a project to memory pool
+    ${txtylw}r[${bldylw}emove${txtylw}] $txtrst  Remove a project from memory pool
+    ${txtylw}h[${bldylw}elp${txtylw}]   $txtrst  Show this message
+	"
+}
+
+#==============================================================================
+# Error handler
+#------------------------------------------------------------------------------
+throw_error()
+{
+	msg=$1
+	code=$2
+	echo -e "${txtred}ERROR: ${txtrst}${msg}"
+	echo -e "See '${bldgrn}mux help${txtrst}' for help and instructions."
+	exit $code
+}
+
+#==============================================================================
+# List available projects and opened session
+#------------------------------------------------------------------------------
+list()
+{
+	echo -e "${txtwht}Projects:$txtrst"
+	find $pool \( ! -iname ".git*" \) -mindepth 1 -print0 | xargs -0 -n1 basename
+	echo -e "\n${txtwht}Opened Sessions:$txtrst"
+	tmux ls 2>/dev/null
+	echo
+}
+
+#==============================================================================
+# Exit if already inside a tmux session
+#------------------------------------------------------------------------------
+exit_if_nested()
+{
+	if [ ! -z "$TMUX" ]; then
+		throw_error "Sessions should be nested with care, unset \$TMUX to force" 2
+	fi
+}
+
+#==============================================================================
+# Attaches to an already-opened tmux session
+# or create a completely new session
+#------------------------------------------------------------------------------
+attach_or_new()
+{
+	exit_if_nested
+	if which tmux 2>&1 >/dev/null; then
+		(tmux attach || tmux new-session)
+	fi
+}
+
+#==============================================================================
+# Opens a mux project file or attaches to an already-opened named session
+# $1 - Project profile file
+#------------------------------------------------------------------------------
+open_project()
+{
+	path=${pool}$1
+
+	if [ -L "$path" ]; then
+		# cd into the target dir if symlink
+		cd "$(dirname "$(readlink "$path")")"
+		name=$(basename $(pwd))
+	else
+		name=$(basename ${path})
+	fi
+
+	# Check if requested session already exists
+	tmux has-session -t $name 2>/dev/null
+	if [ "$?" -eq 1 ] ; then
+		# Load a project named by 2nd argument
+		if [ ! -f "$path" ]; then
+			throw_error "Unable to load $path" 4
+		fi
+		exit_if_nested
+		source "$path"
+	else
+		tmux attach -t $name
+	fi
+}
+
+#==============================================================================
+# Adds a project to memory pool
+# $1 - Filepath to project file, default: ./Tmuxfile
+#------------------------------------------------------------------------------
+add_project()
+{
+	file="$1"
+
+	# If no requested file, discover hook file
+	if [[ -z "$file" && -f "./$hook" ]]; then
+		name=$(basename $(pwd))
+		path="$(pwd)/$hook"
+
+	# If requested specific file exists
+	elif [[ ! -z "$file" && -f "$file" ]]; then
+		name="$(basename "$file")"
+		path="$(cd "$(dirname "$file")" && pwd)/$name"
+
+	else
+		throw_error "Invalid filename or not exists: $file" 4
+	fi
+
+	[ -f "${pool}$name" ] && throw_error "Project file already exists at ${pool}$name" 5
+	ln -s "$path" "${pool}$name"
+	[ "$?" -eq 0 ] || throw_error "Unable to create a symlink at ${pool}$name" 3
+	echo "Symlink created at ${pool}$name"
+}
+
+#==============================================================================
+# Removes a project to memory pool
+# $1 - Filepath to project file, default: ./Tmuxfile
+#------------------------------------------------------------------------------
+remove_project()
+{
+	file=$1
+	# If no requested file, discover hook file
+	if [[ -z "$file" && -f "./$hook" ]]; then
+		name=$(basename $(pwd))
+
+	# If requested specific file exists
+	elif [[ ! -z "$file" && -f "${pool}$file" ]]; then
+		name="$(basename "$1")"
+
+	else
+		throw_error "Invalid filename or not exists: ${pool}$file" 4
+	fi
+
+	[ -f "${pool}$name" ] || throw_error "Project does not exist at ${pool}$name" 4
+	rm "${pool}$name"
+	[ "$?" -eq 0 ] || throw_error "Unable to remove the symlink at ${pool}$name" 3
+	echo "Symlink removed from ${pool}$name"
+}
+
+#==============================================================================
+# Tries to discover a project file in current directory
+#------------------------------------------------------------------------------
+discover()
+{
+	if [ -f "./$hook" ]; then
+		name=$(basename $(pwd))
+		tmux has-session -t $name 2>/dev/null
+		if [ "$?" -eq 1 ] ; then
+			exit_if_nested
+			name=$name source "./$hook"
+		else
+			tmux attach -t $name
+		fi
+	else
+		throw_error "Unable to find '$hook' file here in $(pwd)" 6
+	fi
+}
+
+
+#==============================================================================
+# Execute request
+#------------------------------------------------------------------------------
+
+# No arguments: Discover project in current directory
+if [ "$#" -eq 0 ]; then
+	discover
+else
+	# Iterate through arguments but only execute a single one
+	for arg in "$@"
+	do
+		case "$arg" in
+		a|attach)  attach_or_new;
+			;;
+		h|help)    usage;
+			;;
+		l|ls)      list;
+			;;
+		ad|add)    add_project "$2";
+			;;
+		r|remove)  remove_project "$2";
+			;;
+		-*)        throw_error "Incorrect argument: $arg" 1;
+			;;
+		*)         open_project "$1";
+			;;
+		esac
+
+		# Immediately exit after one command
+		exit 0;
+	done
+fi
+
+#-------8<---------------------------------------------------------------------
