@@ -83,7 +83,7 @@ throw_error()
 list()
 {
 	echo -e "${txtwht}Projects:$txtrst"
-	find $pool \( ! -iname ".git*" \) -mindepth 1 -print0 | xargs -0 -n1 basename
+	find $pool -mindepth 1 \( ! -iname ".git*" \) -print0 | xargs -0 -n1 basename
 	echo -e "\n${txtwht}Opened Sessions:$txtrst"
 	tmux ls 2>/dev/null
 	echo
