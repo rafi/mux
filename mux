@@ -9,19 +9,15 @@
 # Settings
 #------------------------------------------------------------------------------
 
-# Specify a memory pool path, with leading slash
-# Default: Will resolve to projects/ under mux's directory
-pool=""
+# Set the memory pool path, without leading slash
+pool="${XDG_CONFIG_HOME:-$HOME/.config}/mux"
 
 # Specify the project hook filename
 hook="Tmuxfile"
 
-# Resolve mux installed directory if pool is not set
+# Create mux pool directory if doesn't exist
 if [ -z $pool ]; then
-	# Use GNU readlink if possible (OSX)
-	readlink="greadlink"
-	hash greadlink 2>/dev/null || readlink="readlink"
-	pool="$(dirname $($readlink -f "$BASH_SOURCE"))/projects/"
+	mkdir -p $pool
 fi
 
 # Colors
@@ -117,7 +113,7 @@ attach_or_new()
 #------------------------------------------------------------------------------
 open_project()
 {
-	path=${pool}$1
+	path=${pool}/$1
 
 	if [ -L "$path" ]; then
 		# cd into the target dir if symlink
@@ -163,10 +159,10 @@ add_project()
 		throw_error "Invalid filename or not exists: $file" 4
 	fi
 
-	[ -f "${pool}$name" ] && throw_error "Project file already exists at ${pool}$name" 5
-	ln -s "$path" "${pool}$name"
-	[ "$?" -eq 0 ] || throw_error "Unable to create a symlink at ${pool}$name" 3
-	echo "Symlink created at ${pool}$name"
+	[ -f "${pool}/$name" ] && throw_error "Project file already exists at ${pool}/$name" 5
+	ln -s "$path" "${pool}/$name"
+	[ "$?" -eq 0 ] || throw_error "Unable to create a symlink at ${pool}/$name" 3
+	echo "Symlink created at ${pool}/$name"
 }
 
 #==============================================================================
@@ -181,17 +177,17 @@ remove_project()
 		name=$(basename $(pwd))
 
 	# If requested specific file exists
-	elif [[ ! -z "$file" && -f "${pool}$file" ]]; then
+	elif [[ ! -z "$file" && -f "${pool}/$file" ]]; then
 		name="$(basename "$1")"
 
 	else
-		throw_error "Invalid filename or not exists: ${pool}$file" 4
+		throw_error "Invalid filename or not exists: ${pool}/$file" 4
 	fi
 
-	[ -f "${pool}$name" ] || throw_error "Project does not exist at ${pool}$name" 4
-	rm "${pool}$name"
-	[ "$?" -eq 0 ] || throw_error "Unable to remove the symlink at ${pool}$name" 3
-	echo "Symlink removed from ${pool}$name"
+	[ -f "${pool}/$name" ] || throw_error "Project does not exist at ${pool}/$name" 4
+	rm "${pool}/$name"
+	[ "$?" -eq 0 ] || throw_error "Unable to remove the symlink at ${pool}/$name" 3
+	echo "Symlink removed from ${pool}/$name"
 }
 
 #==============================================================================
