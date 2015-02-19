@@ -5,15 +5,18 @@ mux
 
 Usage: `mux [project|command]`
 
-### DISCOVER
+DISCOVER
+---
 Running `mux` without any arguments will try to discover
 a tmux project file at `./Tmuxfile` and source it.
 
-### PROJECTS
+PROJECTS
+---
 If the project argument is included, `mux` will try to load it from its memory pool.
 The memory pool is a folder `mux` keeps with symlinks to your projects.
 
-### COMMANDS
+COMMANDS
+---
 
  - `a[ttach]`   Attach to an existing tmux session or create a new one
  - `l[s]`       List available projects in memory pool and tmux sessions
@@ -21,11 +24,12 @@ The memory pool is a folder `mux` keeps with symlinks to your projects.
  - `r[emove]`   Remove a project from memory pool
  - `h[elp]`     Show this message
 
-### EXAMPLES
-#### Listing
+EXAMPLES
+---
+### Listing
 See available projects and opened tmux sessions: `$ mux ls`
 
-#### Adding
+### Adding
 Discover project's `Tmuxfile`:
 ```
 $ cd /srv/http/foobar
@@ -34,7 +38,7 @@ $ mux add
 
 Adding a custom tmux project file: `$ mux add /some/where/foobar.sh`
 
-#### Loading and Attaching
+### Loading and Attaching
 Load or attach to current project's session:
 ```
 $ cd /srv/http/foobar
@@ -45,7 +49,7 @@ Load/attach to project's session by name: `$ mux foobar`
 
 Attach to an existing session or create a new one: `$ mux attach`
 
-#### Removing
+### Removing
 Remove current project from memory pool: (deletes cached symlink)
 ```
 $ cd /srv/http/foobar
@@ -54,10 +58,11 @@ $ mux remove
 
 Remove a specific custom tmux project file: `$ mux remove foobar.sh`
 
-#### Tmuxfile Example
+Tmuxfile Example
+---
 Here is a typical `Tmuxfile` example:
-```
-#!/bin/bash
+```sh
+#!/usr/bin/env bash
 #
 # PROJECT NAME
 # tmux workspace
@@ -87,8 +92,8 @@ tmux select-pane -t $name:1.1
 tmux attach-session -t $name
 ```
 
-### LICENSE
+LICENSE
+---
 The MIT License (MIT)
 
-Copyright (c) 2014 Rafael Bodill
-
+Copyright (c) 2015 Rafael Bodill
